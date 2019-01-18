@@ -85,7 +85,7 @@ mercator.embed(<edgelist_filename>)
 
 ### Output files
 
-The program outputs several files during and after the embedding procedure 
+The program outputs several files during and after the embedding procedure
 
 * `*.inf_coord`: Contains information about the embedding procedure, the inferred parameters and the inferred positions.
 * `*.inf_log`: Contains detailled information about the embedding procedure.
@@ -93,7 +93,17 @@ The program outputs several files during and after the embedding procedure
 
 ### Options
 
-Several options are provided to adjust the embedding procedure to specific needs and can be combined.
+Several options are provided to adjust the embedding procedure to specific needs and can be combined
+
+* [Custom output filename](#custom-output-filename)
+* [Custom value for beta](#custom-value-for-beta)
+* [Custom value for the seed of the random number generator](#custom-value-for-the-seed-of-the-random-number-generator)
+* [Fast mode](#fast-mode)
+* [Post-processing of the inferred values of the radial positions](#post-processing-of-the-inferred-values-of-the-radial-positions)
+* [Quiet mode](#quiet-mode)
+* [Refine mode](#refine-mode)
+* [Screen mode](#screen-mode)
+* [Validation mode](#validation-mode)
 
 #### Custom output filename
 
@@ -104,7 +114,7 @@ All generated files are named `<output_rootname>.<extension>` and a custom `<out
 ./mercator -o <custom_output_rootname> <edgelist_filename>
 
 # Python module
-mercator.embed(<edgelist_filename>, rootname_output=<custom_output_rootname>)
+mercator.embed(<edgelist_filename>, output_name=<custom_output_rootname>)
 ```
 
 #### Custom value for beta
@@ -145,7 +155,7 @@ mercator.embed(<edgelist_filename>, fast_mode=True)
 
 #### Post-processing of the inferred values of the radial positions
 
-The inferred radial positions are updated based on the inferred angular positions. When deactivated, nodes with the same degree have the same radial position in the hyperbolic disk. Default is **`true`**. 
+The inferred radial positions are updated based on the inferred angular positions. When deactivated, nodes with the same degree have the same radial position in the hyperbolic disk. Default is **`true`**.
 
 ```
 # Command line
@@ -219,7 +229,7 @@ Default is **`false`**. A python script `plot_validation_of_embedding.py` is pro
 mercator.embed(<edgelist_filename>, validation_mode=True)
 
 # To plot the various characterization quantities
-python3 plot_validation_of_embedding.py <rootname of the edgelist (everything before the last ., if any)> <custom rootname (if any, otherwise leave blank)>
+python3 scripts/plot_validation_of_embedding.py <rootname of the edgelist (everything before the last ., if any)> <custom rootname (if any, otherwise leave blank)>
 ```
 
 

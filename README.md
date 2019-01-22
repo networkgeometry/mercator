@@ -52,6 +52,7 @@ pip3 install setup.py
 ### Format of input files
 
 The structure of the network to be embedded is passed to the program via a file containing its edgelist (one link per line). The edgelist file consists in a simple text file with the following convention
+
 ```
 # lines beginning with "#" are ignored (comments).
 # note that nodes' name must be separated by at least one white space.
@@ -64,6 +65,7 @@ The structure of the network to be embedded is passed to the program via a file 
 [name of node7]  [name of node6]  [remaining information will be ignored]
 ...
 ```
+
 Note that the nodes' name will be imported as `std::string` and can therefore be virtually anything as long as they do not include white spaces (i.e., there is not need for the nodes to be identified by contiguous integers).
 
 **IMPORTANT**: this class only considers **simple undirected** networks **without self-loops**. Any multiple edges (e.g., if the graph is originally directed) or self-loops will be ignored.
@@ -98,6 +100,7 @@ Several options are provided to adjust the embedding procedure to specific needs
 * [Custom output filename](#custom-output-filename)
 * [Custom value for beta](#custom-value-for-beta)
 * [Custom value for the seed of the random number generator](#custom-value-for-the-seed-of-the-random-number-generator)
+* [Clean output mode](#clean-output-mode)
 * [Fast mode](#fast-mode)
 * [Post-processing of the inferred values of the radial positions](#post-processing-of-the-inferred-values-of-the-radial-positions)
 * [Quiet mode](#quiet-mode)
@@ -140,6 +143,19 @@ A custom seed for the random number generator can be provided (useful when sever
 # Python module
 mercator.embed(<edgelist_filename>, seed=<seed_value>)
 ```
+
+#### Clean output mode
+
+Outputs a file with extension `*.inf_coord_raw` containing the columns 2, 3 and 4 of the file with extension `*.inf_coord`. Rows follow the same order as in the file with extension `*.inf_coord_raw`. The global parameters (i.e., beta, mu, etc.) ate not included in the file. Default is `false`.
+
+```
+# Command line
+./mercator -c <edgelist_filename>
+
+# Python module
+mercator.embed(<edgelist_filename>, clean_mode=True)
+```
+
 
 #### Fast mode
 

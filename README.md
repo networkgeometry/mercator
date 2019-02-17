@@ -146,7 +146,7 @@ mercator.embed(<edgelist_filename>, seed=<seed_value>)
 
 #### Clean output mode
 
-Outputs a file with extension `*.inf_coord_raw` containing the columns 2, 3 and 4 of the file with extension `*.inf_coord`. Rows follow the same order as in the file with extension `*.inf_coord_raw`. The global parameters (i.e., beta, mu, etc.) ate not included in the file. Default is **`false`**.
+Outputs a file with extension `*.inf_coord_raw` containing the columns 2, 3 and 4 of the file with extension `*.inf_coord`. Rows follow the same order as in the file with extension `*.inf_coord`. The global parameters (i.e., beta, mu, etc.) ate not included in the file. Default is **`false`**.
 
 ```
 # Command line

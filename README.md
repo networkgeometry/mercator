@@ -42,7 +42,7 @@ Requirements
 
 ```
 # Unix (Linux / MAC OS)
-pip3 install setup.py
+pip3 install .  # to be executed from mercator's repository
 ```
 
 

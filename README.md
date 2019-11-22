@@ -252,7 +252,10 @@ python3 scripts/plot_validation_of_embedding.py <rootname of the edgelist (every
 Please cite:
 
 _Mercator: uncovering faithful hyperbolic embeddings of complex networks_<br>
-Guillermo García-Pérez, Antoine Allard, M. Ángeles Serrano and Marián Boguñá<br>
+[Guillermo García-Pérez](https://scholar.google.es/citations?user=MibFSJIAAAAJ&hl=en),
+[Antoine Allard](http://antoineallard.info),
+[M. Ángeles Serrano](http://morfeo.ffn.ub.es/~mariangeles/ws_en/) and
+[Marián Boguñá](http://complex.ffn.ub.es/~mbogunya/)<br>
 to appear in New Journal of Physics (2019)<br>
 Full text | [arXiv](https://arxiv.org/abs/1904.10814)
 

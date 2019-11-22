@@ -1,8 +1,6 @@
 # Mercator
 Inference of high-quality embeddings of complex networks into the hyperbolic disk
 
-
-
 ## Table of content
 
 1. Installation
@@ -13,7 +11,7 @@ Inference of high-quality embeddings of complex networks into the hyperbolic dis
     * [Running the code](#running-the-code)
     * [Ouput files](#output-files)
     * [Options](#options)
-
+3. [Publication](#publication)
 
 
 ## Installation
@@ -248,6 +246,15 @@ mercator.embed(<edgelist_filename>, validation_mode=True)
 python3 scripts/plot_validation_of_embedding.py <rootname of the edgelist (everything before the last ., if any)> <custom rootname (if any, otherwise leave blank)>
 ```
 
+
+## Publications
+
+Please cite:
+
+_Mercator: uncovering faithful hyperbolic embeddings of complex networks_
+Guillermo García-Pérez, Antoine Allard, M. Ángeles Serrano and Marián Boguñá
+to appear in New Journal of Physics (2019)
+Full text | [arXiv](https://arxiv.org/abs/1904.10814)
 
 
 

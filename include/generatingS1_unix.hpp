@@ -5,8 +5,8 @@
  * Author:  Antoine Allard
  * WWW:     antoineallard.info
  * Date:    November 2017
- * 
- * 
+ *
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  *
  */
 
@@ -65,11 +65,12 @@ void print_help()
   std::cout << std::endl;
   std::cout << "The following options are available:"                                                                                                                  << std::endl;
   std::cout << "\t-a             Indicates that the file containing the hidden variables comes from the networkS1 embedding program (gets BETA and MU from the file)." << std::endl;
-  std::cout << "\t-b [VALUE]     Specifies the value for parameter beta."                                                                                                << std::endl;
+  std::cout << "\t-b [VALUE]     Specifies the value for parameter beta."                                                                                              << std::endl;
+  std::cout << "\t-g             Does not allow large initial angular gaps (may be useful for visualization)."                                                         << std::endl;
   std::cout << "\t-h             Print this message on screen and exit."                                                                                               << std::endl;
-  std::cout << "\t-m [VALUE]     Specifies the value for parameter mu. Default: MU = BETA * std::sin(PI / BETA) / (2.0 * PI * average_kappa)."                           << std::endl;
+  std::cout << "\t-m [VALUE]     Specifies the value for parameter mu. Default: MU = BETA * std::sin(PI / BETA) / (2.0 * PI * average_kappa)."                         << std::endl;
   std::cout << "\t-n             Indicates that the first column of the hidden variables file provides the name of the vertices."                                      << std::endl;
-  std::cout << "\t-o [ROOTNAME]  Specifies the rootname used for all output files. Uses the filename of the hidden variables file as rootname if not specified."         << std::endl;
+  std::cout << "\t-o [ROOTNAME]  Specifies the rootname used for all output files. Uses the filename of the hidden variables file as rootname if not specified."       << std::endl;
   std::cout << "\t-s [SEED]      Program uses a custom seed for the random number generator. Default: EPOCH."                                                          << std::endl;
   std::cout << "\t-t             Indicates that the last column of the hidden variables file provides the angular position (i.e., theta) of the vertices."             << std::endl;
   std::cout << "\t-v             Outputs the hidden variables (kappa and theta) used to the generate the network into a file (uses the edgelist's rootname)."          << std::endl;
@@ -100,7 +101,7 @@ bool parse_options(int argc , char *argv[], generatingS1_t &the_graph)
 
   // Parsing options.
   int opt;
-  while ((opt = getopt(argc,argv,"ab:hm:no:s:tv")) != -1)
+  while ((opt = getopt(argc,argv,"ab:ghm:no:s:tv")) != -1)
   {
     switch(opt)
     {
@@ -112,6 +113,10 @@ bool parse_options(int argc , char *argv[], generatingS1_t &the_graph)
 
       case 'b':
         the_graph.BETA = std::stod(optarg);
+        break;
+
+        case 'g':
+        the_graph.ALLOW_LARGE_INITIAL_ANGULAR_GAPS = false;
         break;
 
       case 'h':

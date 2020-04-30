@@ -65,6 +65,8 @@ class embeddingS1_t
     const double PI = 3.141592653589793238462643383279502884197;
   // Flags controlling options.
   public:
+    // Allows the initial angular positions to have large gaps.
+    bool ALLOW_LARGE_INITIAL_ANGULAR_GAPS = true;
     // Characterizes the inferred ensemble (generates CHARACTERIZATION_NB_GRAPHS graphs and measure
     //   various structural properties).
     bool CHARACTERIZATION_MODE = false;
@@ -1368,18 +1370,25 @@ void embeddingS1_t::infer_initial_positions()
     // Uses the value of the expected gap to position the vertices.
     /*TEST*/possible_dtheta1 = int1 / int2;
     /*TEST*/possible_dtheta2 = PI - std::fabs(PI - std::fabs(raw_theta[v1] - raw_theta[v0]));
-    if(possible_dtheta1 > possible_dtheta2)
+    // if(possible_dtheta1 > possible_dtheta2)
+    // {
+    //   norm += possible_dtheta1;
+    // }
+    // else
+    // {
+    //   norm += possible_dtheta2;
+    // }
+    if(possible_dtheta1 < possible_dtheta2 || !ALLOW_LARGE_INITIAL_ANGULAR_GAPS)
     {
-      norm += possible_dtheta1;
+      norm += possible_dtheta2;
     }
     else
     {
-      norm += possible_dtheta2;
+      norm += possible_dtheta1;
     }
     // norm += int1 / int2;
     theta[v1] = norm;
     // Switches the identities of the vertices prior to the next gap.
-
     v0 = v1;
   }
   if(!QUIET_MODE) { std::clog << std::endl << TAB << "Sum of the angular positions (before adjustment): " << norm << std::endl; }

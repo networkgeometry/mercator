@@ -11,7 +11,7 @@ Inference of high-quality embeddings of complex networks into the hyperbolic dis
     * [Running the code](#running-the-code)
     * [Ouput files](#output-files)
     * [Options](#options)
-3. [Publication](#publication)
+3. [Publications](#publications)
 
 
 ## Installation
@@ -252,12 +252,12 @@ python3 scripts/plot_validation_of_embedding.py <rootname of the edgelist (every
 Please cite:
 
 _Mercator: uncovering faithful hyperbolic embeddings of complex networks_<br>
-[Guillermo García-Pérez](https://scholar.google.es/citations?user=MibFSJIAAAAJ&hl=en),
-[Antoine Allard](http://antoineallard.info),
+[Guillermo García-Pérez*](https://scholar.google.es/citations?user=MibFSJIAAAAJ&hl=en),
+[Antoine Allard*](http://antoineallard.info),
 [M. Ángeles Serrano](http://morfeo.ffn.ub.es/~mariangeles/ws_en/) and
 [Marián Boguñá](http://complex.ffn.ub.es/~mbogunya/)<br>
-to appear in New Journal of Physics (2019)<br>
-Full text | [arXiv](https://arxiv.org/abs/1904.10814)
+New Journal of Physics 21, 123033 (2019)<br>
+[Full text](https://doi.org/10.1088/1367-2630/ab57d2) | [arXiv](https://arxiv.org/abs/1904.10814)
 
 
 

@@ -86,6 +86,8 @@ void print_help()
   std::cout << "\t               programs."                                                           << std::endl;
   std::cout << "\t-f             Fast mode. Does not infer the positions based on likelihood"         << std::endl;
   std::cout << "\t               maximization, rather uses only the EigenMap method."                 << std::endl;
+  std::cout << "\t-g             Does not allow large initial angular gaps (may be useful for"        << std::endl;
+  std::cout << "\t               visualization)."                                                     << std::endl;
   std::cout << "\t-k             No post-processing of the values of kappa based on the inferred"     << std::endl;
   std::cout << "\t               angular positions (theta) resulting in every vertices with the same" << std::endl;
   std::cout << "\t               degree ending at the same radial position in the hyperbolic disk."   << std::endl;

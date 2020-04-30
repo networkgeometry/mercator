@@ -1378,13 +1378,13 @@ void embeddingS1_t::infer_initial_positions()
     // {
     //   norm += possible_dtheta2;
     // }
-    if(possible_dtheta1 < possible_dtheta2 || !ALLOW_LARGE_INITIAL_ANGULAR_GAPS)
+    if(possible_dtheta1 > possible_dtheta2 || !ALLOW_LARGE_INITIAL_ANGULAR_GAPS)
     {
-      norm += possible_dtheta2;
+      norm += possible_dtheta1;
     }
     else
     {
-      norm += possible_dtheta1;
+      norm += possible_dtheta2;
     }
     // norm += int1 / int2;
     theta[v1] = norm;

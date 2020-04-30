@@ -129,7 +129,7 @@ void parse_options(int argc , char *argv[], embeddingS1_t &the_graph)
 
   // Parsing options.
   int opt;
-  while ((opt = getopt(argc,argv,"ab:cfko:r:qs:v")) != -1)
+  while ((opt = getopt(argc,argv,"ab:cfgko:r:qs:v")) != -1)
   {
     switch(opt)
     {
@@ -148,6 +148,10 @@ void parse_options(int argc , char *argv[], embeddingS1_t &the_graph)
 
       case 'f':
         the_graph.MAXIMIZATION_MODE = false;
+        break;
+
+      case 'g':
+        the_graph.ALLOW_LARGE_INITIAL_ANGULAR_GAPS = false;
         break;
 
       // case 'h':

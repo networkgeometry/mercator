@@ -245,7 +245,7 @@ def plot_hyperbolic_disk_slow():
 
 
 # ==================================================================================================
-# Theta density (using raw data)
+# Theta density
 # ==================================================================================================
 def plot_theta_density():
   global id_fig
@@ -368,7 +368,7 @@ def plot_comparison_vprop_using_cols(cols):
   # Loads the list of names.
   data = np.loadtxt(vprop_inferred, usecols=cols)
   # Plots the values of both thetas
-  min_bound = 2 * np.min( [ np.min([v for v in data[:, 0] if v > 0]), np.min([v for v in data[:, 0] if v > 0]) ] ) / 3
+  min_bound = 2 * np.min( [ np.min([v for v in data[:, 0] if v > 0]), np.min([v for v in data[:, 1] if v > 0]) ] ) / 3
   max_bound = 3 * np.max( [np.max(data[:, 0]), np.max(data[:, 1])] ) / 2
   ax.plot([min_bound, max_bound], [min_bound, max_bound], c="#555555", marker="None", ls="--", lw=2)
   ax.errorbar(data[:, 0], data[:, 1], yerr=(2 * data[:, 2]), alpha=0.2, #fmt="None",
@@ -466,31 +466,38 @@ def plot_comparison_vprop():
   ax.set_xlabel(r"original clustering $(c)$")
   ax.set_ylabel(r"inferred clustering $(c)$")
   # Degree distribution.
-  ax = plot_comparison_vstat_using_cols([0, 1], [0, 1, 2], "upper right")
+  ax = plot_comparison_vstat_using_cols([0, 1], [0, 1, 2], "lower right")
   ax.set_xscale("log")
   ax.set_yscale("log")
-  ax.set_xlabel(r"degree $(k)$")
+  #ax.set_xlabel(r"degree $(k)$")
   ax.set_xlabel(r"degree")
   # ax.set_ylabel(r"degree distribution $[p(k)]$"))
   ax.set_ylabel(r"degree distribution")
+  # Complementary cumulative degree distribution.
+  ax = plot_comparison_vstat_using_cols([0, 2], [0, 3, 4], "lower left")
+  ax.set_xscale("log")
+  ax.set_yscale("log")
+  ax.set_xlabel(r"degree")
+  # ax.set_xlabel(r"degree $(k)$"))
+  ax.set_ylabel(r"comp. cumul. degree distribution")
   # Sum degree of neighbors spectrum.
-  ax = plot_comparison_vstat_using_cols([0, 2], [0, 3, 4], "lower right")
+  ax = plot_comparison_vstat_using_cols([0, 3], [0, 5, 6], "lower right")
   ax.set_xlabel(r"degree")
   # ax.set_xlabel(r"degree $(k)$"))
   ax.set_ylabel(r"sum degree of neighbors")
   # Average degree of neighbors spectrum.
-  ax = plot_comparison_vstat_using_cols([0, 3], [0, 5, 6], "lower right")
+  ax = plot_comparison_vstat_using_cols([0, 4], [0, 7, 8], "lower right")
   ax.set_xlabel(r"degree")
   # ax.set_xlabel(r"degree $(k)$"))
   # ax.set_ylabel(r"average degree of neighbors $[\bar{k}_\mathrm{nn}(k)]$"))
   ax.set_ylabel(r"average degree of neighbors")
   # Number of triangles.
-  ax = plot_comparison_vstat_using_cols([0, 4], [0, 7, 8], "lower right")
+  ax = plot_comparison_vstat_using_cols([0, 5], [0, 9, 10], "lower right")
   # ax.set_xlabel(r"degree $(k)$"))
   ax.set_xlabel(r"degree")
   ax.set_ylabel(r"number of triangles")
   # Clustering spectrum.
-  ax = plot_comparison_vstat_using_cols([0, 5], [0, 9, 10], "upper right")
+  ax = plot_comparison_vstat_using_cols([0, 6], [0, 11, 12], "upper right")
   # ax.set_xlabel(r"degree $(k)$")
   ax.set_xlabel(r"degree")
   # ax.set_ylabel(r"clustering coefficient $[\bar{c}(k)]$"))
@@ -563,5 +570,5 @@ if __name__ == "__main__":
   plt.suptitle(figure_title, y=0.99, va="top", ha="center")
 
   # Save to file.
-  plt.tight_layout(rect=[-0.012, -0.012, 1.012, 0.988])
+  plt.tight_layout(rect=[-0.006, 0.0, 1.012, 0.988])
   fig.savefig(fname_outvalid)

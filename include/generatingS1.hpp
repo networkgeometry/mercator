@@ -136,7 +136,9 @@ void generatingS1_t::generate_edgelist(int width)
     }
     average_kappa /= nb_vertices;
     // Sets the "default" value of mu.
-    MU = BETA * std::sin(PI / BETA) / (2.0 * PI * average_kappa);
+    if (BETA>=1){MU = BETA * std::sin(PI / BETA) / (2.0 * PI * average_kappa);}
+    else if (BETA< 1){MU = (1-BETA)*std::pow(nb_vertices,BETA-1)*std::pow(2,-BETA)/average_kappa;}
+    else{MU = 1.0 / (2.0 * average_kappa * std::log(nb_vertices));}
   }
   // Generates the values of theta, if not provided.
   if(theta.size() != nb_vertices)

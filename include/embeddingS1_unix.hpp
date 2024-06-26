@@ -86,10 +86,16 @@ void print_help()
   std::cout << "\t               programs."                                                           << std::endl;
   std::cout << "\t-f             Fast mode. Does not infer the positions based on likelihood"         << std::endl;
   std::cout << "\t               maximization, rather uses only the EigenMap method."                 << std::endl;
+  std::cout << "\t-g             Forces the condition beta > 1, the so called geometric phase,"       << std::endl;
+  std::cout << "\t               ignoring the quasi- and non-geometric phases at beta < 1."           << std::endl;
+  std::cout << "\t               The default does take these regions into account."                   << std::endl;
   std::cout << "\t-k             No post-processing of the values of kappa based on the inferred"     << std::endl;
   std::cout << "\t               angular positions (theta) resulting in every vertices with the same" << std::endl;
   std::cout << "\t               degree ending at the same radial position in the hyperbolic disk."   << std::endl;
   // std::cout << "\t-h             Print this message on screen and exit."                              << std::endl;
+  std::cout << "\t-m             Uses an analytic approximation for mu that holds for N >> 1."        << std::endl;
+  std::cout << "\t               The default calculates mu numerically, taking finite size effects "  << std::endl;
+  std::cout << "\t               into account."                                                       << std::endl; 
   std::cout << "\t-o [ROOTNAME]  Specify the rootname used for all output files. Default: uses the"   << std::endl;
   std::cout << "\t               rootname of the edgelist file as (i.e., rootname.edge)."             << std::endl;
   std::cout << "\t-r [FILENAME]  Refine mode. Reads the inferred positions from a previous run of"    << std::endl;
@@ -127,7 +133,7 @@ void parse_options(int argc , char *argv[], embeddingS1_t &the_graph)
 
   // Parsing options.
   int opt;
-  while ((opt = getopt(argc,argv,"ab:cfko:r:qs:v")) != -1)
+  while ((opt = getopt(argc,argv,"ab:gmcfko:r:qs:v")) != -1)
   {
     switch(opt)
     {
@@ -152,6 +158,14 @@ void parse_options(int argc , char *argv[], embeddingS1_t &the_graph)
       //   print_usage();
       //   print_help();
       //   std::exit(0);
+
+      case 'g':
+        the_graph.ALL_BETA_MODE = false;
+        break;
+
+      case 'm':
+        the_graph.NUMERIC_MU_MODE = false;
+        break;
 
       case 'k':
         the_graph.KAPPA_POST_INFERENCE_MODE = false;

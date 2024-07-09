@@ -92,6 +92,10 @@ class embeddingS1_t
     bool VALIDATION_MODE = false;
     // Print information about the embedding process on screen instead than on the log file.
     bool VERBOSE_MODE = false;
+    // Allows the program to enter the region beta < 1, where a different connection probability holds
+    bool ALL_BETA_MODE = true;
+    // Uses numerical methods to infer mu, instead of the analytic expression that holds for N >> 1
+    bool NUMERIC_MU_MODE = true;
 
   // Global parameters.
   public:
@@ -99,7 +103,10 @@ class embeddingS1_t
     std::string ALREADY_INFERRED_PARAMETERS_FILENAME;
     // Minimal/maximal value of beta that the program can handle (bounds).
     double BETA_ABS_MAX = 25;
-    double BETA_ABS_MIN = 1.01;
+    double BETA_ABS_MIN_GEOMETRIC = 1.01;
+    double BETA_ABS_MIN_NON_GEOMETRIC = 0.01;
+    // Number of network copies at beta = 0 used to calculate configuration model average local clustering.
+    int METRICITY_TEST_NB_GRAPHS = 100;
     // Number of graphs to generate during the characterization of the inferred ensemble.
     int CHARACTERIZATION_NB_GRAPHS = 100;
     // Number of new positions to try.
@@ -114,6 +121,8 @@ class embeddingS1_t
     int EXP_DIST_NB_INTEGRATION_STEPS = 1000;
     // Maximal number of attempts to reach convergence of the updated values of kappa.
     int KAPPA_MAX_NB_ITER_CONV = 500;
+    // Maximal number of steps in Newtons Method to find the correct mu.
+    int FINDING_MU_STEPS = 100;
     // // Criterion for the change of the nature of the criterion for the convergence during the
     // //   maximization of the angular positions.
     // int LIMIT_FOR_CONVERGENCE_CRITERION = 625;
@@ -128,7 +137,7 @@ class embeddingS1_t
     // Minimal values for 2 sigmas when drawing new angles to test.
     double MIN_TWO_SIGMAS_NORMAL_DIST = PI / 6;
     // Various numerical/convergence thresholds.
-    double NUMERICAL_CONVERGENCE_THRESHOLD_1 = 1e-2;
+    double NUMERICAL_CONVERGENCE_THRESHOLD_1 = 1e-3;
     double NUMERICAL_CONVERGENCE_THRESHOLD_2 = 5e-5;
     double NUMERICAL_CONVERGENCE_THRESHOLD_3 = 0.5;
     // double MAXIMIZATION_CONVERGENCE_THRESHOLD = 0.01;
@@ -257,12 +266,15 @@ class embeddingS1_t
     // Builds the cumulative distribution to choose degree classes in the calculation of clustering.
     void build_cumul_dist_for_mc_integration();
     // Computes various properties of the random ensemble (before finding optimal positions).
+    void rewire_atzero(); 
     void compute_random_ensemble_average_degree();
     void compute_random_ensemble_clustering();
     double compute_random_ensemble_clustering_for_degree_class(int d1);
     // Infers the values of kappa.
     void infer_kappas_given_beta_for_all_vertices();
     void infer_kappas_given_beta_for_degree_class();
+    // Defines a numerical value for mu, that works for all beta, not just betas away from 1
+    void calculate_numerical_mu();
     // === Embedding ===
     // Computes the log-likelihood between two vertices.
     // double compute_pairwise_loglikelihood(int v1, double t1, int v2, double t2);
@@ -498,7 +510,9 @@ void embeddingS1_t::build_cumul_dist_for_mc_integration()
   double tmp_val, tmp_cumul;
   // Parameters.
   double R = nb_vertices / (2 * PI);
-  mu = beta * std::sin(PI / beta) / (2.0 * PI * average_degree);
+  if(!NUMERIC_MU_MODE && beta >=1){mu =  beta * std::sin(PI / beta) / (2.0 * PI * average_degree);}
+  else if(!NUMERIC_MU_MODE && beta < 1){mu =  (1 - beta) * std::pow(2, -beta) * std::pow(nb_vertices, beta - 1) / average_degree;}
+  else {calculate_numerical_mu();}
   // Temporary container.
   std::map<int, double> nkkp;
   // Resets the main object.
@@ -528,7 +542,7 @@ void embeddingS1_t::build_cumul_dist_for_mc_integration()
     end2 = degree_class.end();
     for(; it2!=end2; ++it2)
     {
-      tmp_val = hyp2f1a(beta, -std::pow((PI * R) / (mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]), beta));
+      tmp_val = hyp2f1a(beta, PI * R , mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]);
       nkkp[*it2] = degree2vertices[*it2].size() * tmp_val / random_ensemble_expected_degree_per_degree_class[*it1];
     }
 
@@ -541,7 +555,6 @@ void embeddingS1_t::build_cumul_dist_for_mc_integration()
     end2 = degree_class.end();
     for(; it2!=end2; ++it2)
     {
-
       tmp_val = nkkp[*it2];
       if(tmp_val > NUMERICAL_ZERO)
       {
@@ -554,6 +567,154 @@ void embeddingS1_t::build_cumul_dist_for_mc_integration()
   }
 }
 
+// =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+// =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+void embeddingS1_t::rewire_atzero()
+{
+  // For rewiring
+  // Variables.
+  long int counter(1);
+  long int maxcounter(10*METRICITY_TEST_NB_GRAPHS*nb_edges);
+  int nodei,nodej,nodel,nodem;
+  int randomij,randomlm;
+  // Vector objects.
+  std::vector<std::vector<int>> edges(nb_edges);
+  std::vector<std::vector<int>> rewired_adjacency_list(nb_vertices);
+  std::set<std::set<int>> edges_set;
+  // Set objects.
+  std::set<std::set<int>>::iterator edge_it;
+  std::set<int> link;
+
+  //For calculating clustering
+  // Variables.
+  int links(0);
+  double rewired_average_clustering;
+  double mu(0), std(0), Pbis0;
+  // Vector objects.
+  vector<double> clustering_realizations;
+
+  //Loops over all the vertices.
+  for (int i = 0; i < adjacency_list.size(); i++)
+  {
+    //Loops over the neighbours of vertex i.
+    for (std::set<int>::iterator it = adjacency_list.at(i).begin(); it != adjacency_list.at(i).end(); ++it)
+    {
+      //Defines a link as the set [i,*it].
+      link.insert(i);
+      link.insert(*it);
+      //Inserts the link into the edge list. Double links are avoided because of c++ set.
+      edges_set.insert(link); 
+      //Clear the link
+      link.clear();
+      //Insert the neighbour into a copy of the adjacency list, using as a container a c++ vector, such that the elements can be changed during rewiring.
+      rewired_adjacency_list.at(i).push_back(*it);
+    }    
+  }
+
+  //Copy the content of the edge list into a c++ vector container so that elements can be changed during rewiring.
+  edge_it = edges_set.begin();
+  for (int i = 0; i < nb_edges; i++){
+    link = *edge_it;
+    //This step is necessary to destroy any correlations between the index name and its position in the edge pair. 
+    if (uniform_01(engine)<0.5)
+    {
+      edges.at(i).push_back(*link.begin());
+      edges.at(i).push_back(*link.rbegin());
+    }
+    else
+    {
+      edges.at(i).push_back(*link.rbegin());
+      edges.at(i).push_back(*link.begin());
+    }  
+    ++edge_it;
+  }
+
+  //rewire until maxcounter is reached.
+  while (counter <= maxcounter)
+  {
+    //initialize the 4 nodes that are effected by the rewiring step. Choose them the same such that the while loop is entered.
+    nodei = nodej = nodel = nodem = 0;
+
+    //Choose new candidates if: 
+      //-Any two nodes are identical.
+      //-node i and m are already connected.
+      //-node j and l are already connected.
+    while(nodei==nodej || nodei == nodel || nodei == nodem || nodej == nodem || nodej == nodel || nodel == nodem || 
+          std::find(rewired_adjacency_list.at(nodei).begin(),rewired_adjacency_list.at(nodei).end(),nodem)!=rewired_adjacency_list.at(nodei).end() ||
+          std::find(rewired_adjacency_list.at(nodel).begin(),rewired_adjacency_list.at(nodel).end(),nodej)!=rewired_adjacency_list.at(nodel).end())
+    {
+      //choose two random edges.
+      randomij = std::floor(uniform_01(engine)*nb_edges);
+      randomlm = std::floor(uniform_01(engine)*nb_edges);
+
+      //node i and j are the two nodes connected by the first edge and node l and m by the second.
+      nodei = edges.at(randomij).at(0);
+      nodej = edges.at(randomij).at(1);
+      nodel = edges.at(randomlm).at(0);
+      nodem = edges.at(randomlm).at(1);
+    }
+
+    //once a set of nodes has been accepted, perform the rewiring. Node i connects to m and l to j.
+    edges.at(randomij).at(1) = nodem;
+    edges.at(randomlm).at(1) = nodej;
+
+    *(std::find(rewired_adjacency_list.at(nodei).begin(),rewired_adjacency_list.at(nodei).end(),nodej)) = nodem;
+    *(std::find(rewired_adjacency_list.at(nodej).begin(),rewired_adjacency_list.at(nodej).end(),nodei)) = nodel;
+    *(std::find(rewired_adjacency_list.at(nodem).begin(),rewired_adjacency_list.at(nodem).end(),nodel)) = nodei;
+    *(std::find(rewired_adjacency_list.at(nodel).begin(),rewired_adjacency_list.at(nodel).end(),nodem)) = nodej;
+
+    //Perform 10*nb_edges rewirings to destroy all correlations between the networks in the monte carlo sampling scheme. According to https://doi.org/10.1093/comnet/cnu041, this should be enough.
+    if (counter % (10*nb_edges) == 0)
+    {
+      //Calculate the average local clustering coefficient
+      rewired_average_clustering = 0;
+      for(int i = 0; i<nb_vertices; i++){
+        if (degree.at(i) > 1){
+          for (vector<int>::iterator it1 = rewired_adjacency_list.at(i).begin(); it1 != rewired_adjacency_list.at(i).end(); ++it1){
+            for (vector<int>::iterator it2 = (it1+1); it2 != rewired_adjacency_list.at(i).end(); ++it2){
+              for (vector<int>::iterator it3 = rewired_adjacency_list.at(*it2).begin(); it3 != rewired_adjacency_list.at(*it2).end(); ++it3){
+                if (*it1 == *it3){links ++;}
+              }
+            }
+          }
+          rewired_average_clustering += 2 * links * 1.0 / (degree.at(i)*(degree.at(i)-1));
+        }
+        links = 0;
+      }
+      clustering_realizations.push_back(rewired_average_clustering/nb_vertices_degree_gt_one);
+    }
+
+    counter ++;
+
+  }
+
+  //calculate average clustering
+  for (std::vector<double>::iterator it = clustering_realizations.begin(); it != clustering_realizations.end(); ++it){
+    mu += *it / METRICITY_TEST_NB_GRAPHS;
+  }
+
+  //calculate standard deviation of clustering
+  for (std::vector<double>::iterator it = clustering_realizations.begin(); it != clustering_realizations.end(); ++it){
+    std += (*it - mu)*(*it - mu) / (METRICITY_TEST_NB_GRAPHS - 1);
+  }
+  std = std::sqrt(std);
+
+  //Assuming a gaussian distribution, calculate the complementary cumulative distribution function
+  Pbis0 = 0.5 *( 1 - std::erf((average_clustering-mu)/(std*std::sqrt(2))));
+
+  if (Pbis0 < 0.01/*(average_clustering - mu)/std > 3*/)
+  {
+    if(!QUIET_MODE) { std::clog << "Metricity likely, P(C > c | beta = 0) = " << Pbis0 << std::endl;};
+  }
+  else
+  {
+    if(!QUIET_MODE) { std::clog << "WARNING: EXTREMELY WEAK METRICITY, P(C > c | beta = 0) = " << Pbis0 <<     std::endl;};
+    std::cerr << "Extremely weak geometry, P(C > c | beta = 0) = " << Pbis0 <<                                 std::endl;
+    std::cerr << "Mercator unable to determine beta. Please rerun the program with a manually chosen beta." << std::endl;
+    std::cerr << std::endl;
+    std::terminate();
+  }
+}
 
 // =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 // =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
@@ -635,7 +796,6 @@ void embeddingS1_t::compute_inferred_ensemble_expected_degrees()
 {
   // Variables.
   double kappa1, theta1, dtheta, prob;
-  double prefactor = nb_vertices / (2 * PI * mu);
   // Computes the new expected degrees given the inferred values of theta.
   inferred_ensemble_expected_degree.clear();
   inferred_ensemble_expected_degree.resize(nb_vertices, 0);
@@ -646,7 +806,8 @@ void embeddingS1_t::compute_inferred_ensemble_expected_degrees()
     for(int v2(v1 + 1); v2<nb_vertices; ++v2)
     {
       dtheta = PI - std::fabs(PI - std::fabs(theta1 - theta[v2]));
-      prob = 1 / (1 + std::pow((prefactor * dtheta) / (kappa1 * kappa[v2]), beta));
+      if(beta>=1){prob = 1 / (1 + std::pow((nb_vertices * dtheta) / (2 * PI * mu * kappa1 * kappa[v2]), beta));}
+      if(beta< 1){prob = 1 / (1 + std::pow((nb_vertices * dtheta) / (2 * PI), beta) * 1.0 / (mu * kappa1 * kappa[v2]));}
       inferred_ensemble_expected_degree[v1] += prob;
       inferred_ensemble_expected_degree[v2] += prob;
     }
@@ -662,6 +823,7 @@ void embeddingS1_t::compute_random_ensemble_average_degree()
   random_ensemble_average_degree = 0;
   std::map<int, double>::iterator it2 = random_ensemble_expected_degree_per_degree_class.begin();
   std::map<int, double>::iterator end2 = random_ensemble_expected_degree_per_degree_class.end();
+
   for(; it2!=end2; ++it2)
   {
     random_ensemble_average_degree += it2->second * degree2vertices[it2->first].size();
@@ -703,28 +865,30 @@ double embeddingS1_t::compute_random_ensemble_clustering_for_degree_class(int d1
   // Parameters.
   int nb_points = EXP_CLUST_NB_INTEGRATION_MC_STEPS;
   double R = nb_vertices / (2 * PI);
-  mu = beta * std::sin(PI / beta) / (2.0 * PI * average_degree);
+  if(!NUMERIC_MU_MODE && beta > 1){mu = beta * std::sin(PI / beta) / (2.0 * PI * average_degree);}
+  else if(!NUMERIC_MU_MODE && beta < 1){mu =  (1 - beta) * std::pow(2, -beta) * std::pow(nb_vertices, beta - 1) / average_degree;}
+  else if(!NUMERIC_MU_MODE && beta == 1){mu = 1.0 / (2 * average_degree * std::log(nb_vertices));}
+  else {calculate_numerical_mu();}
   // MC integration.
   for(int i(0); i<nb_points; ++i)
   {
     // Gets the degree of vertex 2;
     d2 = cumul_prob_kgkp[d1].lower_bound(uniform_01(engine))->second;
     // Computes their probability of being connected.
-    p12 = hyp2f1a(beta, -std::pow((PI * R) / (mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d2]), beta));
+    p12 = hyp2f1a(beta, PI * R, mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d2]);
 
     // Gets the degree of vertex 3;
     d3 = cumul_prob_kgkp[d1].lower_bound(uniform_01(engine))->second;
     // Computes their probability of being connected.
-    p13 = hyp2f1a(beta, -std::pow((PI * R) / (mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d3]), beta));
+    p13 = hyp2f1a(beta, PI * R, mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d3]);
 
-    //
     pc = uniform_01(engine);
     zmin = 0;
     zmax = PI;
     while( (zmax - zmin) > NUMERICAL_CONVERGENCE_THRESHOLD_2 )
     {
       z = (zmax + zmin) / 2;
-      pz = (z / PI) * hyp2f1a(beta, -std::pow( (z * R) / (mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d2]), beta)) / p12;
+      pz = (z / PI) * hyp2f1a(beta, z * R, mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d2]) / p12;
       if(pz > pc)
       {
         zmax = z;
@@ -743,7 +907,7 @@ double embeddingS1_t::compute_random_ensemble_clustering_for_degree_class(int d1
     while( (zmax - zmin) > NUMERICAL_CONVERGENCE_THRESHOLD_2 )
     {
       z = (zmax + zmin) / 2;
-      pz = (z / PI) * hyp2f1a(beta, -std::pow( (z * R) / (mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d3]), beta)) / p13;
+      pz = (z / PI) * hyp2f1a(beta, z * R, mu * random_ensemble_kappa_per_degree_class[d1] * random_ensemble_kappa_per_degree_class[d3]) / p13;
       if(pz > pc)
       {
         zmax = z;
@@ -772,7 +936,8 @@ double embeddingS1_t::compute_random_ensemble_clustering_for_degree_class(int d1
     }
     else
     {
-      p23 += 1.0 / (1.0 + std::pow((da * R) / (mu * random_ensemble_kappa_per_degree_class[d2] * random_ensemble_kappa_per_degree_class[d3]), beta));
+      if(beta>=1){p23 += 1.0 / (1.0 + std::pow((da * R) / (mu * random_ensemble_kappa_per_degree_class[d2] * random_ensemble_kappa_per_degree_class[d3]), beta));}
+      if(beta< 1){p23 += 1.0 / (1.0 + std::pow((da * R), beta) * 1.0 / (mu * random_ensemble_kappa_per_degree_class[d2] * random_ensemble_kappa_per_degree_class[d3]));}
     }
   }
   // Returns the value of the local clustering coefficient for this degree class.
@@ -794,11 +959,13 @@ double embeddingS1_t::compute_pairwise_loglikelihood(int v1, double t1, int v2, 
   // Computes the loglikelihood between vertives v1 and v2 according to whether they are neighbors or not.
   if(neighbors)
   {
-    return -1 * beta * std::log( (nb_vertices * da) / (2 * PI * mu * kappa[v1] * kappa[v2]) );
+    if(beta>=1){return -1 * beta * std::log( (nb_vertices * da) / (2 * PI * mu * kappa[v1] * kappa[v2]) );}
+    else{return -1 * beta * std::log( (nb_vertices * da) / (2 * PI) ) + std::log(mu * kappa[v1] * kappa[v2]) ;}
   }
   else // not neighbors
   {
-    return -1 * std::log( 1 + std::pow( (nb_vertices * da) / (2 * PI * mu * kappa[v1] * kappa[v2]), -beta) );
+    if(beta>=1){return -1 * std::log( 1 + std::pow( (nb_vertices * da) / (2 * PI * mu * kappa[v1] * kappa[v2]), -beta) );}
+    else{return -1 * std::log( 1 + std::pow( (nb_vertices * da) / (2 * PI), - beta) * mu * kappa[v1] * kappa[v2]);}
   }
 }
 
@@ -957,7 +1124,8 @@ void embeddingS1_t::finalize()
   if(!QUIET_MODE) { std::clog << "Internal parameters and options"                                                                          << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "ALREADY_INFERRED_PARAMETERS_FILENAME   " << ALREADY_INFERRED_PARAMETERS_FILENAME                   << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "BETA_ABS_MAX                           " << BETA_ABS_MAX                                           << std::endl; }
-  if(!QUIET_MODE) { std::clog << TAB << "BETA_ABS_MIN                           " << BETA_ABS_MIN                                           << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "BETA_ABS_MIN_GEOMETRIC                 " << BETA_ABS_MIN_GEOMETRIC                                 << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "BETA_ABS_MIN_NON_GEOMETRIC             " << BETA_ABS_MIN_NON_GEOMETRIC                             << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "CHARACTERIZATION_MODE                  " << (CHARACTERIZATION_MODE       ? "true" : "false")       << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "CHARACTERIZATION_NB_GRAPHS             " << CHARACTERIZATION_NB_GRAPHS                             << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "CLEAN_RAW_OUTPUT_MODE                  " << (CLEAN_RAW_OUTPUT_MODE       ? "true" : "false")       << std::endl; }
@@ -970,11 +1138,13 @@ void embeddingS1_t::finalize()
   if(!QUIET_MODE) { std::clog << TAB << "EDGELIST_FILENAME:                     " << EDGELIST_FILENAME                                      << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "EXP_CLUST_NB_INTEGRATION_MC_STEPS      " << EXP_CLUST_NB_INTEGRATION_MC_STEPS                      << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "EXP_DIST_NB_INTEGRATION_STEPS          " << EXP_DIST_NB_INTEGRATION_STEPS                          << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "FINDING_MU_STEPS                       " << FINDING_MU_STEPS                                       << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "KAPPA_MAX_NB_ITER_CONV                 " << KAPPA_MAX_NB_ITER_CONV                                 << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "KAPPA_POST_INFERENCE_MODE              " << (KAPPA_POST_INFERENCE_MODE   ? "true" : "false")       << std::endl; }
   // if(!QUIET_MODE) { std::clog << TAB << "LIMIT_FOR_CONVERGENCE_CRITERION        " << LIMIT_FOR_CONVERGENCE_CRITERION                        << std::endl; }
   // if(!QUIET_MODE) { std::clog << TAB << "MAX_NB_ITER_MAXIMIZATION               " << MAX_NB_ITER_MAXIMIZATION                               << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "MAXIMIZATION_MODE                      " << (MAXIMIZATION_MODE           ? "true" : "false")       << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "METRICITY_TEST_NB_GRAPHS               " << METRICITY_TEST_NB_GRAPHS                               << std::endl; }
   // if(!QUIET_MODE) { std::clog << TAB << "MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD  " << MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD                  << std::endl; }
   // if(!QUIET_MODE) { std::clog << TAB << "MINIMAL_ANGULAR_RESOLUTION             " << MINIMAL_ANGULAR_RESOLUTION                             << std::endl; }
   // if(!QUIET_MODE) { std::clog << TAB << "NB_VERTICES_IN_CORE                    " << NB_VERTICES_IN_CORE                                    << std::endl; }
@@ -989,6 +1159,8 @@ void embeddingS1_t::finalize()
   if(!QUIET_MODE) { std::clog << TAB << "ROOTNAME_OUTPUT:                       " << ROOTNAME_OUTPUT                                        << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "SEED                                   " << SEED                                                   << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "VALIDATION_MODE                        " << (VALIDATION_MODE             ? "true" : "false")       << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "ALL_BETA_MODE                          " << (ALL_BETA_MODE               ? "true" : "false")       << std::endl; }
+  if(!QUIET_MODE) { std::clog << TAB << "NUMERIC_MU_MODE                        " << (NUMERIC_MU_MODE             ? "true" : "false")       << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "VERBOSE_MODE                           " << (VERBOSE_MODE                ? "true" : "false")       << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "VERSION                                " << VERSION                                                << std::endl; }
   if(!QUIET_MODE) { std::clog                                                                                                               << std::endl; }
@@ -1069,15 +1241,15 @@ void embeddingS1_t::find_initial_ordering(std::vector<int> &ordering, std::vecto
         n2 = newID[v2];
         if(n2 != -1)
         {
-          // Ensures that every edge is looked only once.
+          // Ensures that every edge is looked at only once.
           if(v1 < v2)
           {
             // Gets the degree and kappa of the second vertex.
             d2 = degree[v2];
             k2 = random_ensemble_kappa_per_degree_class[d2];
             // Computes the expected arc length distance between connected pairs of vertices.
-            expected_distance = PI * hyp2f1b(beta, -std::pow(nb_vertices / (2.0 * mu * k1 * k2), beta));
-            expected_distance /= 2 * hyp2f1a(beta, -std::pow(nb_vertices / (2.0 * mu * k1 * k2), beta));
+            expected_distance = PI * hyp2f1b(beta, nb_vertices / 2.0, mu * k1 * k2);
+            expected_distance /= 2 * hyp2f1a(beta, nb_vertices / 2.0, mu * k1 * k2);
             if(expected_distance < 0 || expected_distance > PI)
             {
               // Just a verification.
@@ -1285,7 +1457,6 @@ void embeddingS1_t::generate_simulated_adjacency_list()
   simulated_adjacency_list.resize(nb_vertices);
   // Generates the adjacency list.
   double kappa1, theta1, dtheta, prob;
-  double prefactor = nb_vertices / (2 * PI * mu);
   for(int v1(0); v1<nb_vertices; ++v1)
   {
     kappa1 = kappa[v1];
@@ -1293,7 +1464,8 @@ void embeddingS1_t::generate_simulated_adjacency_list()
     for(int v2(v1 + 1); v2<nb_vertices; ++v2)
     {
       dtheta = PI - std::fabs(PI - std::fabs(theta1 - theta[v2]));
-      prob = 1 / (1 + std::pow((prefactor * dtheta) / (kappa1 * kappa[v2]), beta));
+      if(beta>=1){prob = 1 / (1 + std::pow((nb_vertices * dtheta) / (2 * PI * mu * kappa1 * kappa[v2]), beta));}
+      if(beta< 1){prob = 1 / (1 + std::pow((nb_vertices * dtheta) / (2 * PI), beta) * 1.0 / (mu * kappa1 * kappa[v2]));}
       if(uniform_01(engine) < prob)
       {
         simulated_adjacency_list[v1].insert(v2);
@@ -1328,7 +1500,7 @@ void embeddingS1_t::infer_initial_positions()
   double norm = 0;
   double possible_dtheta1, possible_dtheta2;
   double dx = PI / EXP_DIST_NB_INTEGRATION_STEPS;
-  double prefactor = nb_vertices / (2 * PI * mu);
+  int sign(1);//define to be able to do the same trick with sign of beta for beta<1
   double avg_gap = 2 * PI / nb_vertices;
   std::vector<int>::iterator it = ordering.begin();
   std::vector<int>::iterator end = ordering.end();
@@ -1342,12 +1514,12 @@ void embeddingS1_t::infer_initial_positions()
     int1 = 0;
     int2 = 0;
     tmp = 0;
-    factor = prefactor / ( random_ensemble_kappa_per_degree_class[degree[v0]] * random_ensemble_kappa_per_degree_class[degree[v1]] );
     // Adjusts the sign of beta according to whether the vertices are connected or not.
     b = beta;
     if(adjacency_list[v0].find(v1) == adjacency_list[v0].end())
     {
       b = -beta; // not connected
+      sign = -1; // not connected
     }
     // Lower bound of the integral (no contribution if not connected).
     if(b > 0)
@@ -1355,13 +1527,15 @@ void embeddingS1_t::infer_initial_positions()
       int2 += 0.5;
     }
     // Upper bound of the integral.
-    tmp = std::exp(-PI / avg_gap) / ( 1 + std::pow(factor * PI, b) );
+    if(beta>=1){tmp = std::exp(-PI / avg_gap) / ( 1 + std::pow(nb_vertices / (2.0 * mu * random_ensemble_kappa_per_degree_class[degree[v0]] * random_ensemble_kappa_per_degree_class[degree[v1]] ), b) );}
+    if(beta< 1){tmp = std::exp(-PI / avg_gap) / ( 1 + std::pow(nb_vertices / 2.0, b) * std::pow(mu * random_ensemble_kappa_per_degree_class[degree[v0]] * random_ensemble_kappa_per_degree_class[degree[v1]], -sign ));}
     int1 += PI * tmp / 2;
     int2 += tmp / 2;
     // In-between points.
     for(double da = dx; da < PI; da += dx)
     {
-      tmp = std::exp(-da / avg_gap) / ( 1 + std::pow(factor * da, b) );
+      if(beta>=1){tmp = std::exp(-da / avg_gap) / ( 1 + std::pow(nb_vertices * da / (2.0 * PI * mu * random_ensemble_kappa_per_degree_class[degree[v0]] * random_ensemble_kappa_per_degree_class[degree[v1]] ), b) );}
+      if(beta< 1){tmp = std::exp(-da / avg_gap) / ( 1 + std::pow(nb_vertices * da / (2.0 * PI), b) * std::pow(mu * random_ensemble_kappa_per_degree_class[degree[v0]] * random_ensemble_kappa_per_degree_class[degree[v1]], -sign ));}
       int1 += da * tmp;
       int2 += tmp;
     }
@@ -1451,7 +1625,10 @@ void embeddingS1_t::infer_kappas_given_beta_for_degree_class()
   // Variable.
   double prob_conn;
   // Parameters.
-  mu = beta * std::sin(PI / beta) / (2.0 * PI * average_degree);
+  if(!NUMERIC_MU_MODE && beta > 1){mu =  beta * std::sin(PI / beta) / (2.0 * PI * average_degree);}
+  else if(!NUMERIC_MU_MODE && beta < 1){mu =  (1 - beta) * std::pow(2, -beta) * std::pow(nb_vertices, beta - 1) / average_degree;}
+  else if(!NUMERIC_MU_MODE && beta == 1){mu = 1.0 / (2 * average_degree * std::log(nb_vertices));}
+  else {calculate_numerical_mu();}
   // Iterators.
   std::set<int>::iterator it1, it2, end;
   // Initializes the kappas for each degree class.
@@ -1480,11 +1657,11 @@ void embeddingS1_t::infer_kappas_given_beta_for_degree_class()
     for(; it1!=end; ++it1)
     {
       it2 = it1;
-      prob_conn = hyp2f1a(beta, -std::pow(nb_vertices / (2.0 * mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]), beta));
+      prob_conn = hyp2f1a(beta, nb_vertices / 2.0, mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]);
       random_ensemble_expected_degree_per_degree_class[*it1] += prob_conn * (degree2vertices[*it2].size() - 1);
       for(++it2; it2!=end; ++it2)
       {
-        prob_conn = hyp2f1a(beta, -std::pow(nb_vertices / (2.0 * mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]), beta));
+        prob_conn = hyp2f1a(beta, nb_vertices / 2.0, mu * random_ensemble_kappa_per_degree_class[*it1] * random_ensemble_kappa_per_degree_class[*it2]);
         random_ensemble_expected_degree_per_degree_class[*it1] += prob_conn * degree2vertices[*it2].size();
         random_ensemble_expected_degree_per_degree_class[*it2] += prob_conn * degree2vertices[*it1].size();
       }
@@ -1524,6 +1701,75 @@ void embeddingS1_t::infer_kappas_given_beta_for_degree_class()
   }
 }
 
+// =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+// =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
+void embeddingS1_t::calculate_numerical_mu()
+{
+  // Initialize mu by its value for N -> Infinity.
+  if(beta> 1){mu = beta * std::sin(PI/beta) / (2*PI*average_degree);}
+  if(beta==1){mu = 1.0 / (2 * average_degree * std::log(nb_vertices));}
+  if(beta< 1){mu = (1-beta)/(std::pow(2,beta)*average_degree*std::pow(nb_vertices,1-beta));}
+  //Newtons method to find the value of mu where in the model the expected degree is the average degree.
+  //Variables.
+  std::set<int>::iterator it1,it2;
+  bool keep_going(true);
+  int cnt(0);
+  int k1,k2, Nk1, Nk2;
+  double int1,int2;
+
+  //Stop when convergence or max steps has been reached.
+  while(keep_going && cnt < FINDING_MU_STEPS){
+      //Initialize integrals. int1 is the average degree and int2 is the derivative of the average degree wrt mu.
+      int1 = 0;
+      int2 = 0;
+      //The loops represent the hidden degree integrals, in this case sums. Here we assume kappa_i = k_i.
+      for ( it1 = degree_class.begin() ; it1 != degree_class.end() ; ++it1){
+          k1 = *it1;
+          Nk1 = degree2vertices[*it1].size();
+          for (it2 = degree_class.begin() ; it2 != degree_class.end() ; ++it2){
+              k2 = *it2;
+              Nk2 = degree2vertices[*it2].size();
+              //The integrand depends on beta. The hidden degree density is here approximated by Pk = Nk/N.
+              int1 += 1./nb_vertices *Nk1*Nk2* hyp2f1a(beta, nb_vertices*1./2,mu*k1*k2);
+              if (beta>1) {
+                int2 += 1./nb_vertices *Nk1*Nk2* 1./(1+std::pow(nb_vertices/(2*mu*k1*k2),beta));
+              }
+              else if (beta>0){
+                int2 += 1./nb_vertices *Nk1*Nk2* 1./(1+std::pow(nb_vertices*1./2,beta)/(mu*k1*k2));
+              }
+              else{
+                int2 += 1./nb_vertices *Nk1*Nk2* 1./(mu*k1*k2 + 2 + 1.0 /(mu*k1*k2));
+              }
+          }
+      }
+      //Checks if the goal has been reached, if so, exit the loop.
+      if(std::abs(int1 - average_degree) < NUMERICAL_CONVERGENCE_THRESHOLD_2){
+          keep_going = false;
+      }
+      else{
+          //Newtons method calculates the next step.
+          if (beta>=1){mu -= mu * (int1 - average_degree)/ (int1 - int2);}
+          else if (beta>0){mu -= beta*mu * (int1 - average_degree)/ (int1 - int2);}
+          else{mu -= mu * (int1 - average_degree) / int2;}
+          //If overshoots to negative values enforce trying zero.
+          if (mu<=0){mu = NUMERICAL_ZERO;}
+          ++cnt;
+      }
+  }
+
+  // If the loop above is exitted before convergence is reached, use the analytic approximation of mu instead. 
+  if (cnt >= FINDING_MU_STEPS){
+    if(!QUIET_MODE) { std::clog << TAB << "WARNING: maximum number of iterations reached before convergence. This limit can be"  << std::endl; }
+    if(!QUIET_MODE) { std::clog << TAB << "         adjusted by setting the parameters FINDING_MU_STEPS to desired value. Using" << std::endl; }
+    if(!QUIET_MODE) { std::clog << TAB << "         analytic approximation of mu instead."                                       << std::endl; }
+    if(beta> 1){mu = beta * std::sin(PI/beta) / (2*PI*average_degree);}
+    if(beta==1){mu = 1.0 / (2 * average_degree * std::log(nb_vertices));}
+    if(beta< 1){mu = (1-beta)/(std::pow(2,beta)*average_degree*std::pow(nb_vertices,1-beta));}
+    NUMERIC_MU_MODE = false;
+  }
+  
+  
+}
 
 // =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
 // =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
@@ -1541,7 +1787,10 @@ void embeddingS1_t::infer_parameters()
     beta = 2 + uniform_01(engine);
     // Iterates until convergence is reached.
     double beta_max = -1;
-    double beta_min = 1;
+    double beta_min;
+    bool CHECKED_METRICITY = false;
+    if(!ALL_BETA_MODE){beta_min = 1;}
+    else{beta_min = 0;}
     random_ensemble_average_clustering = 10;  // dummy value to enter the while loop.
     while( true )
     {
@@ -1568,11 +1817,23 @@ void embeddingS1_t::infer_parameters()
       {
         beta_max = beta;
         beta = (beta_max + beta_min) / 2;
-        if(beta < BETA_ABS_MIN)
+        if(!ALL_BETA_MODE && beta < BETA_ABS_MIN_GEOMETRIC)
         {
           if(!QUIET_MODE) { std::clog << "WARNING: value too close to 1, using beta = " << std::fixed << std::setw(11) << beta << "."; }
           if(!QUIET_MODE) { std::clog << std::endl; }
           break;
+        }
+        if(ALL_BETA_MODE && beta < BETA_ABS_MIN_NON_GEOMETRIC)
+        {
+          if(!QUIET_MODE) { std::clog << "WARNING: value too close to 0, using beta = " << std::fixed << std::setw(11) << beta << "."; }
+          if(!QUIET_MODE) { std::clog << std::endl; }
+          break;
+        }
+        if(ALL_BETA_MODE && !CHECKED_METRICITY && beta < 1)
+        {
+          if(!QUIET_MODE) { std::clog << "beta < 1: checking metricity of the network ..."  << std::endl; }
+          rewire_atzero();
+          CHECKED_METRICITY = true;
         }
       }
       else
@@ -1684,7 +1945,7 @@ void embeddingS1_t::initialize()
   // Outputs options and parameters on screen.
   if(!QUIET_MODE) { std::clog                                                                                                  << std::endl; }
   if(!QUIET_MODE) { std::clog << "===========================================================================================" << std::endl; }
-  if(!QUIET_MODE) { std::clog << "Mercador: accurate embeddings of graphs in the S1 space"                                     << std::endl; }
+  if(!QUIET_MODE) { std::clog << "Mercator: accurate embeddings of graphs in the S1 space"                                     << std::endl; }
   if(!QUIET_MODE) { std::clog << "version: "           << VERSION                                                              << std::endl; }
   if(!QUIET_MODE) { std::clog << "started on: "        << format_time(time_started)                                            << std::endl; }
   if(!QUIET_MODE) { std::clog << "edgelist filename: " << EDGELIST_FILENAME                                                    << std::endl; }
@@ -2137,6 +2398,7 @@ void embeddingS1_t::save_inferred_connection_probability()
   double t1;
   double da;
   double dist;
+
   for(int v1(0), i; v1<nb_vertices; ++v1)
   {
     k1 = kappa[v1];
@@ -2144,7 +2406,8 @@ void embeddingS1_t::save_inferred_connection_probability()
     for(int v2(v1 + 1); v2<nb_vertices; ++v2)
     {
       da = PI - std::fabs( PI - std::fabs(t1 - theta[v2]) );
-      dist = (nb_vertices * da) / (2 * PI * mu * k1 * kappa[v2]);
+      if(beta>=1){dist = (nb_vertices * da) / (2 * PI * mu * k1 * kappa[v2]);}
+      if(beta< 1){dist = std::pow((nb_vertices * da) / (2 * PI), beta) / (mu * k1 * kappa[v2]);}
       i = bins.lower_bound(dist)->second;
       n[i] += 1;
       x[i] += dist;
@@ -2173,7 +2436,8 @@ void embeddingS1_t::save_inferred_connection_probability()
     {
       pconn_file << std::setw(width_values) << x[i] / n[i]           << " ";
       pconn_file << std::setw(width_values) << p[i] / n[i]           << " ";
-      pconn_file << std::setw(width_values) << 1 / (1 + std::pow(x[i] / n[i], beta) ) << " ";
+      if(beta>=1){pconn_file << std::setw(width_values) << 1 / (1 + std::pow(x[i] / n[i], beta) ) << " ";}
+      if(beta< 1){pconn_file << std::setw(width_values) << 1 / (1 + x[i] / n[i])                  << " ";}
       pconn_file << std::endl;
     }
   }
@@ -2192,7 +2456,9 @@ void embeddingS1_t::save_inferred_coordinates()
   double kappa_min = *std::min_element(kappa.begin(), kappa.end());
   double kappa_max = *std::max_element(kappa.begin(), kappa.end());
   // Computes the hyperbolic radius (adjusts it in case some vertices have a negative radial position).
-  double hyp_radius = 2 * std::log( nb_vertices / (PI * mu * kappa_min * kappa_min) );
+  double hyp_radius;
+  if(beta>=1){hyp_radius = 2 * std::log( nb_vertices / (PI * mu * kappa_min * kappa_min) );}
+  if(beta< 1){hyp_radius = 2 * beta * std::log( nb_vertices / PI) - 2 * std::log(mu * kappa_min * kappa_min);}
   double min_radial_position = hyp_radius - 2 * std::log( kappa_min / kappa_max );
   bool warning = false;
   if(min_radial_position < 0)
@@ -2265,7 +2531,7 @@ void embeddingS1_t::save_inferred_coordinates()
   for(int v; it!=end; ++it)
   {
     v = it->second;
-    coordinates_file << std::setw(width_names) << it->first                                                      << " ";
+    coordinates_file << std::setw(width_names)  << it->first                                                      << " ";
     coordinates_file << std::setw(width_values) << kappa[v]                                                       << " ";
     coordinates_file << std::setw(width_values) << theta[v]                                                       << " ";
     coordinates_file << std::setw(width_values) << hyp_radius - 2 * std::log( kappa[v] / kappa_min )              << " ";
@@ -2277,7 +2543,8 @@ void embeddingS1_t::save_inferred_coordinates()
   coordinates_file << "# Internal parameters and options"                                                                          << std::endl;
   coordinates_file << "# " << TAB << "ALREADY_INFERRED_PARAMETERS_FILENAME   " << ALREADY_INFERRED_PARAMETERS_FILENAME             << std::endl;
   coordinates_file << "# " << TAB << "BETA_ABS_MAX                           " << BETA_ABS_MAX                                     << std::endl;
-  coordinates_file << "# " << TAB << "BETA_ABS_MIN                           " << BETA_ABS_MIN                                     << std::endl;
+  coordinates_file << "# " << TAB << "BETA_ABS_MIN_GEOMETRIC                 " << BETA_ABS_MIN_GEOMETRIC                           << std::endl;
+  coordinates_file << "# " << TAB << "BETA_ABS_MIN_NON_GEOMETRIC             " << BETA_ABS_MIN_NON_GEOMETRIC                       << std::endl;
   coordinates_file << "# " << TAB << "CHARACTERIZATION_MODE                  " << (CHARACTERIZATION_MODE       ? "true" : "false") << std::endl;
   coordinates_file << "# " << TAB << "CHARACTERIZATION_NB_GRAPHS             " << CHARACTERIZATION_NB_GRAPHS                       << std::endl;
   coordinates_file << "# " << TAB << "CLEAN_RAW_OUTPUT_MODE                  " << (CLEAN_RAW_OUTPUT_MODE       ? "true" : "false") << std::endl;
@@ -2289,11 +2556,13 @@ void embeddingS1_t::save_inferred_coordinates()
   coordinates_file << "# " << TAB << "EDGELIST_FILENAME:                     " << EDGELIST_FILENAME                                << std::endl;
   coordinates_file << "# " << TAB << "EXP_CLUST_NB_INTEGRATION_MC_STEPS      " << EXP_CLUST_NB_INTEGRATION_MC_STEPS                << std::endl;
   coordinates_file << "# " << TAB << "EXP_DIST_NB_INTEGRATION_STEPS          " << EXP_DIST_NB_INTEGRATION_STEPS                    << std::endl;
+  coordinates_file << "# " << TAB << "FINDING_MU_STEPS                       " << FINDING_MU_STEPS                                 << std::endl;
   coordinates_file << "# " << TAB << "KAPPA_MAX_NB_ITER_CONV                 " << KAPPA_MAX_NB_ITER_CONV                           << std::endl;
   coordinates_file << "# " << TAB << "KAPPA_POST_INFERENCE_MODE              " << (KAPPA_POST_INFERENCE_MODE   ? "true" : "false") << std::endl;
   // coordinates_file << "# " << TAB << "LIMIT_FOR_CONVERGENCE_CRITERION        " << LIMIT_FOR_CONVERGENCE_CRITERION                  << std::endl;
   // coordinates_file << "# " << TAB << "MAX_NB_ITER_MAXIMIZATION               " << MAX_NB_ITER_MAXIMIZATION                         << std::endl;
   coordinates_file << "# " << TAB << "MAXIMIZATION_MODE                      " << (MAXIMIZATION_MODE           ? "true" : "false") << std::endl;
+  coordinates_file << "# " << TAB << "METRICITY_TEST_NB_GRAPHS               " << METRICITY_TEST_NB_GRAPHS                         << std::endl; 
   // coordinates_file << "# " << TAB << "MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD  " << MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD            << std::endl;
   // coordinates_file << "# " << TAB << "MINIMAL_ANGULAR_RESOLUTION             " << MINIMAL_ANGULAR_RESOLUTION                       << std::endl;
   // coordinates_file << "# " << TAB << "NB_VERTICES_IN_CORE                    " << NB_VERTICES_IN_CORE                              << std::endl;
@@ -2308,6 +2577,8 @@ void embeddingS1_t::save_inferred_coordinates()
   coordinates_file << "# " << TAB << "ROOTNAME_OUTPUT:                       " << ROOTNAME_OUTPUT                                  << std::endl;
   coordinates_file << "# " << TAB << "SEED                                   " << SEED                                             << std::endl;
   coordinates_file << "# " << TAB << "VALIDATION_MODE                        " << (VALIDATION_MODE             ? "true" : "false") << std::endl;
+  coordinates_file << "# " << TAB << "ALL_BETA_MODE                          " << (ALL_BETA_MODE               ? "true" : "false") << std::endl; 
+  coordinates_file << "# " << TAB << "NUMERIC_MU_MODE                        " << (NUMERIC_MU_MODE             ? "true" : "false") << std::endl; 
   coordinates_file << "# " << TAB << "VERBOSE_MODE                           " << (VERBOSE_MODE                ? "true" : "false") << std::endl;
   coordinates_file << "# " << TAB << "VERSION                                " << VERSION                                          << std::endl;
   coordinates_file << "# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="        << std::endl;
@@ -2976,7 +3247,7 @@ void embeddingS1_t::check_connected_components()
     if(!QUIET_MODE) { std::clog << TAB << "- More than one component found!!" << std::endl; }
     if(!QUIET_MODE) { std::clog << TAB << "- " << lcc_size << "/" << nb_vertices << " vertices in the largest component." << std::endl; }
     std::cerr << std::endl;
-    std::cerr << "More than one component found (" << lcc_size << "/" << nb_vertices << " vertices in the largest component." << std::endl;
+    std::cerr << "More than one component found (" << lcc_size << "/" << nb_vertices << ") vertices in the largest component." << std::endl;
 
     std::string edgelist_rootname;
     size_t lastdot = EDGELIST_FILENAME.find_last_of(".");

@@ -105,6 +105,8 @@ Several options are provided to adjust the embedding procedure to specific needs
 * [Refine mode](#refine-mode)
 * [Screen mode](#screen-mode)
 * [Validation mode](#validation-mode)
+* [All beta mode](#all-beta-mode)
+* [Numeric mu mode](#numeric-mu-mode)
 
 #### Custom output filename
 
@@ -246,6 +248,23 @@ mercator.embed(<edgelist_filename>, validation_mode=True)
 python3 scripts/plot_validation_of_embedding.py <rootname of the edgelist (everything before the last ., if any)> <custom rootname (if any, otherwise leave blank)>
 ```
 
+#### All beta mode
+
+Allows for all $0\leq \beta$. If turned off, the condition $\beta > 1$ is imposed, thus ignoring the weakly geometric phase at $\beta < 1$. Default is **`true`**.
+
+```
+# Command line
+./mercator -g <edgelist_filename>
+```
+
+#### Numeric mu mode
+
+Uses a numerical computation of $\mu$ that takes finite size effects into account. If turned off, the analytic approximation for $N\gg 1$ is used. Default is **`true`**.
+
+```
+# Command line
+./mercator -m <edgelist_filename>
+```
 
 ## Publications
 
@@ -258,6 +277,13 @@ _Mercator: uncovering faithful hyperbolic embeddings of complex networks_<br>
 [Marián Boguñá](http://complex.ffn.ub.es/~mbogunya/)<br>
 New Journal of Physics 21, 123033 (2019)<br>
 [Full text](https://doi.org/10.1088/1367-2630/ab57d2) | [arXiv](https://arxiv.org/abs/1904.10814)
+
+_Random graphs and real networks with weak geometric coupling_<br>
+[Jasper van der Kolk](https://scholar.google.nl/citations?user=rCP0ljsAAAAJ&hl=en),
+[M. Ángeles Serrano](http://morfeo.ffn.ub.es/~mariangeles/ws_en/) and
+[Marián Boguñá](http://complex.ffn.ub.es/~mbogunya/)<br>
+Phys. Rev. Research 6, 013337 (2024)<br>
+[Full text](https://doi.org/10.1103/PhysRevResearch.6.013337) | [arXiv](https://doi.org/10.48550/arXiv.2312.07416)
 
 
 

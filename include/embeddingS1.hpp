@@ -3268,6 +3268,7 @@ void embeddingS1_t::check_connected_components()
     }
 
     std::set<int>::iterator it, end;
+    width_names=14;
     for(int v1(0), v2, c1, c2; v1<nb_vertices; ++v1)
     {
       c1 = Vertex2Prop[v1];

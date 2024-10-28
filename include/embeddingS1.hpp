@@ -266,7 +266,7 @@ class embeddingS1_t
     // Builds the cumulative distribution to choose degree classes in the calculation of clustering.
     void build_cumul_dist_for_mc_integration();
     // Computes various properties of the random ensemble (before finding optimal positions).
-    void rewire_atzero(); 
+    void rewire_atzero();
     void compute_random_ensemble_average_degree();
     void compute_random_ensemble_clustering();
     double compute_random_ensemble_clustering_for_degree_class(int d1);
@@ -603,19 +603,19 @@ void embeddingS1_t::rewire_atzero()
       link.insert(i);
       link.insert(*it);
       //Inserts the link into the edge list. Double links are avoided because of c++ set.
-      edges_set.insert(link); 
+      edges_set.insert(link);
       //Clear the link
       link.clear();
       //Insert the neighbour into a copy of the adjacency list, using as a container a c++ vector, such that the elements can be changed during rewiring.
       rewired_adjacency_list.at(i).push_back(*it);
-    }    
+    }
   }
 
   //Copy the content of the edge list into a c++ vector container so that elements can be changed during rewiring.
   edge_it = edges_set.begin();
   for (int i = 0; i < nb_edges; i++){
     link = *edge_it;
-    //This step is necessary to destroy any correlations between the index name and its position in the edge pair. 
+    //This step is necessary to destroy any correlations between the index name and its position in the edge pair.
     if (uniform_01(engine)<0.5)
     {
       edges.at(i).push_back(*link.begin());
@@ -625,7 +625,7 @@ void embeddingS1_t::rewire_atzero()
     {
       edges.at(i).push_back(*link.rbegin());
       edges.at(i).push_back(*link.begin());
-    }  
+    }
     ++edge_it;
   }
 
@@ -635,11 +635,11 @@ void embeddingS1_t::rewire_atzero()
     //initialize the 4 nodes that are effected by the rewiring step. Choose them the same such that the while loop is entered.
     nodei = nodej = nodel = nodem = 0;
 
-    //Choose new candidates if: 
+    //Choose new candidates if:
       //-Any two nodes are identical.
       //-node i and m are already connected.
       //-node j and l are already connected.
-    while(nodei==nodej || nodei == nodel || nodei == nodem || nodej == nodem || nodej == nodel || nodel == nodem || 
+    while(nodei==nodej || nodei == nodel || nodei == nodem || nodej == nodem || nodej == nodel || nodel == nodem ||
           std::find(rewired_adjacency_list.at(nodei).begin(),rewired_adjacency_list.at(nodei).end(),nodem)!=rewired_adjacency_list.at(nodei).end() ||
           std::find(rewired_adjacency_list.at(nodel).begin(),rewired_adjacency_list.at(nodel).end(),nodej)!=rewired_adjacency_list.at(nodel).end())
     {
@@ -1757,7 +1757,7 @@ void embeddingS1_t::calculate_numerical_mu()
       }
   }
 
-  // If the loop above is exitted before convergence is reached, use the analytic approximation of mu instead. 
+  // If the loop above is exitted before convergence is reached, use the analytic approximation of mu instead.
   if (cnt >= FINDING_MU_STEPS){
     if(!QUIET_MODE) { std::clog << TAB << "WARNING: maximum number of iterations reached before convergence. This limit can be"  << std::endl; }
     if(!QUIET_MODE) { std::clog << TAB << "         adjusted by setting the parameters FINDING_MU_STEPS to desired value. Using" << std::endl; }
@@ -1767,8 +1767,8 @@ void embeddingS1_t::calculate_numerical_mu()
     if(beta< 1){mu = (1-beta)/(std::pow(2,beta)*average_degree*std::pow(nb_vertices,1-beta));}
     NUMERIC_MU_MODE = false;
   }
-  
-  
+
+
 }
 
 // =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=
@@ -1960,6 +1960,20 @@ void embeddingS1_t::initialize()
   load_edgelist();
   if(!QUIET_MODE) { std::clog << "...................................................................done."                    << std::endl; }
 
+  // Sets the width of the columns in the output files.
+  width_values = 15;
+  width_names = 14;
+  for(int v(0), l; v<nb_vertices; ++v)
+  {
+    l = Num2Name[v].length();
+    if(l > width_names)
+    {
+      width_names = l;
+    }
+  }
+  width_names += 1;
+
+
   if(!QUIET_MODE) { std::clog                                                                                                  << std::endl; }
   if(!QUIET_MODE) { std::clog << "Checking number of connected components..."; }
   check_connected_components();
@@ -1983,19 +1997,6 @@ void embeddingS1_t::initialize()
 
   // Sets the decimal precision of the log.
   std::clog.precision(4);
-
-  // Sets the width of the columns in the output files.
-  width_values = 15;
-  width_names = 14;
-  for(int v(0), l; v<nb_vertices; ++v)
-  {
-    l = Num2Name[v].length();
-    if(l > width_names)
-    {
-      width_names = l;
-    }
-  }
-  width_names += 1;
 
   if(!QUIET_MODE) { std::clog << "Properties of the graph"                                                                     << std::endl; }
   if(!QUIET_MODE) { std::clog << TAB << "Nb vertices:                    " << nb_vertices                                      << std::endl; }
@@ -2562,7 +2563,7 @@ void embeddingS1_t::save_inferred_coordinates()
   // coordinates_file << "# " << TAB << "LIMIT_FOR_CONVERGENCE_CRITERION        " << LIMIT_FOR_CONVERGENCE_CRITERION                  << std::endl;
   // coordinates_file << "# " << TAB << "MAX_NB_ITER_MAXIMIZATION               " << MAX_NB_ITER_MAXIMIZATION                         << std::endl;
   coordinates_file << "# " << TAB << "MAXIMIZATION_MODE                      " << (MAXIMIZATION_MODE           ? "true" : "false") << std::endl;
-  coordinates_file << "# " << TAB << "METRICITY_TEST_NB_GRAPHS               " << METRICITY_TEST_NB_GRAPHS                         << std::endl; 
+  coordinates_file << "# " << TAB << "METRICITY_TEST_NB_GRAPHS               " << METRICITY_TEST_NB_GRAPHS                         << std::endl;
   // coordinates_file << "# " << TAB << "MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD  " << MINIMAL_ANGULAR_CONVERGENCE_THRESHOLD            << std::endl;
   // coordinates_file << "# " << TAB << "MINIMAL_ANGULAR_RESOLUTION             " << MINIMAL_ANGULAR_RESOLUTION                       << std::endl;
   // coordinates_file << "# " << TAB << "NB_VERTICES_IN_CORE                    " << NB_VERTICES_IN_CORE                              << std::endl;
@@ -2577,8 +2578,8 @@ void embeddingS1_t::save_inferred_coordinates()
   coordinates_file << "# " << TAB << "ROOTNAME_OUTPUT:                       " << ROOTNAME_OUTPUT                                  << std::endl;
   coordinates_file << "# " << TAB << "SEED                                   " << SEED                                             << std::endl;
   coordinates_file << "# " << TAB << "VALIDATION_MODE                        " << (VALIDATION_MODE             ? "true" : "false") << std::endl;
-  coordinates_file << "# " << TAB << "ALL_BETA_MODE                          " << (ALL_BETA_MODE               ? "true" : "false") << std::endl; 
-  coordinates_file << "# " << TAB << "NUMERIC_MU_MODE                        " << (NUMERIC_MU_MODE             ? "true" : "false") << std::endl; 
+  coordinates_file << "# " << TAB << "ALL_BETA_MODE                          " << (ALL_BETA_MODE               ? "true" : "false") << std::endl;
+  coordinates_file << "# " << TAB << "NUMERIC_MU_MODE                        " << (NUMERIC_MU_MODE             ? "true" : "false") << std::endl;
   coordinates_file << "# " << TAB << "VERBOSE_MODE                           " << (VERBOSE_MODE                ? "true" : "false") << std::endl;
   coordinates_file << "# " << TAB << "VERSION                                " << VERSION                                          << std::endl;
   coordinates_file << "# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="        << std::endl;
